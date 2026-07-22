@@ -1,0 +1,6 @@
+# Normalize line endings so the repo stays consistent across Windows/WSL/Netlify.
+* text=auto eol=lf
+*.wasm binary
+*.png binary
+*.jpg binary
+*.ico binary

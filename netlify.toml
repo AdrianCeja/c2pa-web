@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# No COOP/COEP: c2pa-web does not need SharedArrayBuffer, and cross-origin
+# isolation would block c2pa-rs from fetching remote manifests.
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"

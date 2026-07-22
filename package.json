@@ -1,0 +1,25 @@
+{
+  "name": "c2pa-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Web inspector for C2PA / Content Credentials. Reads manifests fully in the browser via WebAssembly (c2pa-web). No backend.",
+  "author": "Adrian Ceja",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AdrianCeja/c2pa-web.git"
+  },
+  "keywords": ["c2pa", "content-credentials", "provenance", "wasm", "adobe", "cai"],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173"
+  },
+  "dependencies": {
+    "@contentauth/c2pa-web": "^0.12.3"
+  },
+  "devDependencies": {
+    "vite": "^7.1.11"
+  }
+}

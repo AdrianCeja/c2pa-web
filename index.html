@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>C2PA Web Inspector</title>
+    <meta
+      name="description"
+      content="Inspect C2PA / Content Credentials in images and video, right in your browser. Nothing is uploaded."
+    />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <span>Assets</span>
+          <button id="btn-clear" class="link" title="Clear list">Clear</button>
+        </div>
+        <ul id="list" class="list"></ul>
+        <div class="sidebar-foot">
+          <span id="tool-version" class="muted">c2pa-web</span>
+        </div>
+      </aside>
+
+      <main class="detail">
+        <div class="webbar">
+          <div class="webbar-title">C2PA Web Inspector</div>
+          <div class="webbar-actions">
+            <button id="btn-open" class="btn">Open files</button>
+            <button id="btn-about" class="btn icon-btn" title="About" aria-label="About">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 11v5" />
+                <path d="M12 7.5h.01" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Empty / drop state -->
+        <section id="empty" class="empty">
+          <div class="empty-card">
+            <div class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l7 4v5c0 4.4-3 7.3-7 9-4-1.7-7-4.6-7-9V7l7-4z" />
+                <path d="M9.2 12.2l2 2 3.6-3.8" />
+              </svg>
+            </div>
+            <h1>Drop media to inspect</h1>
+            <p>
+              Drag images or videos here, or use <b>Open files</b>.<br />
+              Their C2PA / Content Credentials are read in your browser. Nothing is uploaded.
+            </p>
+          </div>
+        </section>
+
+        <!-- Result view -->
+        <section id="result" class="result hidden">
+          <header class="result-head">
+            <div class="thumb" id="thumb"></div>
+            <div class="result-title">
+              <h1 id="r-name">—</h1>
+              <div id="r-sub" class="muted"></div>
+            </div>
+            <div id="r-state" class="state-badge"></div>
+          </header>
+
+          <nav class="tabs">
+            <button class="tab active" data-tab="summary">Summary</button>
+            <button class="tab" data-tab="raw">Raw JSON</button>
+          </nav>
+
+          <div class="tab-panel" id="panel-summary">
+            <div id="cards" class="cards"></div>
+          </div>
+
+          <div class="tab-panel hidden" id="panel-raw">
+            <div id="find-bar" class="find-bar hidden">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+              <input id="find-input" type="text" placeholder="Find in JSON" spellcheck="false" />
+              <span id="find-count" class="find-count"></span>
+              <button id="find-prev" class="find-nav" title="Previous (Shift+Enter)" aria-label="Previous match">&#9650;</button>
+              <button id="find-next" class="find-nav" title="Next (Enter)" aria-label="Next match">&#9660;</button>
+              <button id="find-close" class="find-nav" title="Close (Esc)" aria-label="Close find">&times;</button>
+            </div>
+            <div class="raw-toolbar">
+              <button id="btn-copy" class="btn small">Copy</button>
+              <button id="btn-save" class="btn small">Save JSON…</button>
+              <span id="raw-status" class="muted"></span>
+            </div>
+            <div class="json-viewer">
+              <div class="json-pre" id="json"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- About / Credits -->
+    <div id="about" class="modal hidden">
+      <div class="modal-card">
+        <button id="about-close" class="modal-close" aria-label="Close">×</button>
+        <div class="about-head">
+          <div class="about-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l7 4v5c0 4.4-3 7.3-7 9-4-1.7-7-4.6-7-9V7l7-4z" />
+              <path d="M9.2 12.2l2 2 3.6-3.8" />
+            </svg>
+          </div>
+          <div>
+            <h2>C2PA Web Inspector</h2>
+            <div class="muted" id="about-version">v—</div>
+          </div>
+        </div>
+        <p class="about-desc">Inspect C2PA / Content Credentials (CAI) in images and video, in the browser.</p>
+        <div class="about-section">
+          <h3>Credits</h3>
+          <p>
+            Built on <a href="https://github.com/contentauth/c2pa-js" target="_blank" rel="noopener">c2pa-web</a>
+            (WebAssembly bindings for c2pa-rs) by the Content Authenticity Initiative / Adobe,
+            licensed under MIT or Apache-2.0.
+          </p>
+        </div>
+        <div class="about-links">
+          <a href="https://github.com/AdrianCeja/c2pa-inspector" target="_blank" rel="noopener" class="btn small">Desktop app</a>
+          <a href="https://github.com/contentauth/c2pa-js" target="_blank" rel="noopener" class="btn small">c2pa-web</a>
+        </div>
+        <div class="about-foot muted">MIT License · © 2026 Adrian Ceja</div>
+      </div>
+    </div>
+
+    <!-- Drag overlay -->
+    <div id="dropmask" class="dropmask hidden">
+      <div class="dropmask-inner">Drop to inspect</div>
+    </div>
+
+    <!-- Hidden file input for the "Open files" button -->
+    <input id="file-input" type="file" multiple accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.avif,.tif,.tiff,.gif,.heic,.heif,.dng,.mp4,.mov,.m4v,.avi,.webm,.mkv" hidden />
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
