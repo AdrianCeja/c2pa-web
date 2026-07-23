@@ -11,6 +11,28 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
   const VIDEO_EXT = /\.(mp4|mov|m4v|avi|webm|mkv)$/i;
   const C2PA_WEB_VERSION = '0.12.3';
 
+  // Trust-list validation (opt-in). With these, a signer on the Content
+  // Credentials trust list yields validation_state "Trusted"; otherwise "Valid".
+  // Same lists c2patool uses via --trust_anchors / --allowed_list / --trust_config.
+  // Direct verify.contentauthenticity.org URLs (CORS-open) to skip the CC redirect.
+  const TRUST_SETTINGS = {
+    verify: { verifyTrust: true },
+    trust: {
+      trustAnchors: 'https://verify.contentauthenticity.org/trust/anchors.pem',
+      allowedList: 'https://verify.contentauthenticity.org/trust/allowed.sha256.txt',
+      trustConfig: 'https://verify.contentauthenticity.org/trust/store.cfg',
+    },
+  };
+  // Default ON: the trust lists are tiny (~52KB) and CORS-open. Respect an
+  // explicit saved choice if the user has toggled it before.
+  let trustMode = true;
+  try {
+    const saved = localStorage.getItem('trust');
+    if (saved !== null) trustMode = saved === '1';
+  } catch {
+    /* ignore */
+  }
+
   // MIME hints for extensions the browser leaves blank (helps c2pa-web pick a parser).
   const MIME_BY_EXT = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
@@ -48,10 +70,11 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
    *  - reason 'empty'   → fromBlob returned null: no manifest embedded in the bytes
    *  - throws           → an actual read/parse error (message surfaced to the UI)
    */
-  async function readManifest(file) {
+  async function readManifest(file, trust) {
     const c2pa = await getC2pa();
     // fromBlob resolves to null when the asset carries no *embedded* C2PA manifest.
-    const reader = await c2pa.reader.fromBlob(mimeOf(file), file);
+    // When trust is on, pass the trust-list settings so the signer is checked.
+    const reader = await c2pa.reader.fromBlob(mimeOf(file), file, trust ? TRUST_SETTINGS : undefined);
     if (!reader) return { store: null, raw: '', reason: 'empty' };
     try {
       const store = await reader.manifestStore();
@@ -123,6 +146,28 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     if (!document.documentElement.getAttribute('data-theme')) paintThemeButton(resolvedTheme());
   });
   paintThemeButton(resolvedTheme());
+
+  // ---------- Trust-list validation toggle ----------
+  const trustBtn = $('#btn-trust');
+  function paintTrustButton() {
+    trustBtn.classList.toggle('on', trustMode);
+    trustBtn.setAttribute('aria-pressed', trustMode ? 'true' : 'false');
+    trustBtn.title = trustMode
+      ? 'Trust check ON — verifying the signer against the Content Credentials trust list. Click to turn off.'
+      : 'Trust check OFF — click to verify the signer against the trust list (Trusted vs Untrusted).';
+  }
+  trustBtn.addEventListener('click', async () => {
+    trustMode = !trustMode;
+    try {
+      localStorage.setItem('trust', trustMode ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+    paintTrustButton();
+    // Re-analyze already-loaded assets under the new mode.
+    for (const item of items) await analyzeItem(item);
+  });
+  paintTrustButton();
 
   // ---------- About / Credits ----------
   const aboutEl = $('#about');
@@ -338,6 +383,7 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
   function applyStore(item, store, raw) {
     item.result = { raw };
     item.vm = Parser.parse(store);
+    if (item.vm) item.vm.trustUnavailable = !!item.trustUnavailable;
     item.status = item.vm ? item.vm.validationBadge : 'none';
     item.reason = 'ok';
     item.error = null;
@@ -352,7 +398,21 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     // Read in the browser. For a remote manifest, c2pa-web fetches it directly
     // (subject to the manifest host's CORS policy).
     try {
-      const { store, raw } = await readManifest(item.file);
+      let res;
+      item.trustUnavailable = false;
+      try {
+        res = await readManifest(item.file, trustMode);
+      } catch (e) {
+        // Trust check may have failed because the trust list couldn't be
+        // fetched (offline, etc.). Retry without it so the manifest still reads.
+        if (trustMode) {
+          res = await readManifest(item.file, false);
+          item.trustUnavailable = true;
+        } else {
+          throw e;
+        }
+      }
+      const { store, raw } = res;
       if (store) {
         applyStore(item, store, raw);
       } else {
@@ -515,6 +575,15 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
 
     // Validation
     let valInner = row('State', `<span class="pill ${P.validationBadge}">${esc(P.validationState)}</span>`);
+    let trustVal;
+    if (!trustMode) {
+      trustVal = '<span class="muted">off (enable to see Trusted/Untrusted)</span>';
+    } else if (P.trustUnavailable) {
+      trustVal = '<span class="muted">unavailable — could not load the trust list</span>';
+    } else {
+      trustVal = '<span class="pill accent">verified vs contentcredentials.org</span>';
+    }
+    valInner += row('Trust check', trustVal);
     valInner += row('Checks passed', P.successes != null ? String(P.successes) : null);
     valInner += row('Manifests in store', String(P.manifests.length));
     if (P.claimVersions && P.claimVersions.length) {

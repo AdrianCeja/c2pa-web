@@ -890,6 +890,16 @@ body {
 .dropmask {
   inset: 0;
 }
+
+/* Active state for an icon toggle button (e.g. trust check ON). */
+.icon-btn.on {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.icon-btn.on:hover {
+  filter: brightness(1.05);
+}
 .webbar-title {
   font-size: 13px;
   font-weight: 600;
