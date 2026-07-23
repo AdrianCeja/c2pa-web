@@ -631,15 +631,6 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     $('#r-name').textContent = item.name;
     $('#r-sub').textContent = fmtSize(item.file.size);
 
-    const badge = $('#r-state');
-    if (item.status === 'pending') {
-      setBadge(badge, 'none', 'Analyzing…');
-    } else if (item.vm) {
-      setBadge(badge, item.vm.validationBadge, item.vm.validationState);
-    } else {
-      setBadge(badge, 'none', 'No Content Credentials');
-    }
-
     $('#cards').innerHTML = item.vm ? buildCards(item.vm, item) : buildNoManifest(item);
     $('#tree').innerHTML = item.vm
       ? buildTree(item.vm)
@@ -665,11 +656,6 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     const box = thumbEl('thumb', item);
     box.id = 'thumb';
     return box;
-  }
-
-  function setBadge(node, cls, text) {
-    node.className = 'state-badge ' + cls;
-    node.textContent = text;
   }
 
   function row(k, v, mono) {
