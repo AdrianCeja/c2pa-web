@@ -863,25 +863,32 @@ mark.find-hit.current {
    =========================================================================== */
 body {
   user-select: text; /* selecting JSON / values is expected on the web */
+  display: flex;
+  flex-direction: column; /* full-width top bar, then sidebar + content below */
 }
 .app {
-  height: 100vh; /* no 44px native titlebar to subtract anymore */
+  height: auto; /* cancel the old calc(100vh - 44px) from the Electron layout */
+  flex: 1;
+  min-height: 0; /* let the sidebar list and detail panel scroll inside */
 }
 
-/* Sticky header inside the scrolling detail panel */
+/* Full-width top bar, flush against the top of the page */
 .webbar {
-  position: sticky;
-  top: 0;
-  margin: -22px -26px 18px;
-  padding: 10px 26px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 10px 18px;
   background: var(--panel);
   backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--hairline);
   z-index: 5;
+}
+
+/* The drop overlay covered from 44px down (old Electron titlebar). Cover it all. */
+.dropmask {
+  inset: 0;
 }
 .webbar-title {
   font-size: 13px;
