@@ -91,6 +91,39 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     showEmpty();
   });
 
+  // ---------- Theme toggle (light / dark, overrides the OS preference) ----------
+  const themeBtn = $('#btn-theme');
+  const SUN_ICON =
+    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
+  const MOON_ICON =
+    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+
+  function resolvedTheme() {
+    const attr = document.documentElement.getAttribute('data-theme');
+    if (attr === 'light' || attr === 'dark') return attr;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  function paintThemeButton(theme) {
+    // Show the icon of what a click switches TO.
+    themeBtn.innerHTML = theme === 'dark' ? SUN_ICON : MOON_ICON;
+    themeBtn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      /* ignore */
+    }
+    paintThemeButton(theme);
+  }
+  themeBtn.addEventListener('click', () => setTheme(resolvedTheme() === 'dark' ? 'light' : 'dark'));
+  // Keep the icon in sync if the OS theme changes and no manual choice is set.
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!document.documentElement.getAttribute('data-theme')) paintThemeButton(resolvedTheme());
+  });
+  paintThemeButton(resolvedTheme());
+
   // ---------- About / Credits ----------
   const aboutEl = $('#about');
   $('#btn-about').addEventListener('click', () => {

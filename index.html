@@ -8,6 +8,14 @@
       name="description"
       content="Inspect C2PA / Content Credentials in images and video, right in your browser. Nothing is uploaded."
     />
+    <!-- Apply a saved theme before first paint (avoids a flash). No saved
+         choice = follow the OS via prefers-color-scheme. -->
+    <script>
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div class="app">
@@ -27,6 +35,7 @@
           <div class="webbar-title">C2PA Web Inspector</div>
           <div class="webbar-actions">
             <button id="btn-open" class="btn">Open files</button>
+            <button id="btn-theme" class="btn icon-btn" title="Toggle light/dark" aria-label="Toggle light or dark mode"></button>
             <button id="btn-about" class="btn icon-btn" title="About" aria-label="About">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="9" />

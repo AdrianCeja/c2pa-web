@@ -31,8 +31,9 @@
   --tok-null: #0000ff;
 }
 
+/* Follow the OS only when the user hasn't picked a theme manually. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg-top: #2a2a2c;
     --bg-bottom: #1c1c1e;
     --panel: rgba(44, 44, 46, 0.62);
@@ -59,6 +60,35 @@
     --tok-bool: #569cd6;
     --tok-null: #569cd6;
   }
+}
+
+/* Manual dark choice (theme toggle). Wins over the OS preference. */
+:root[data-theme='dark'] {
+  --bg-top: #2a2a2c;
+  --bg-bottom: #1c1c1e;
+  --panel: rgba(44, 44, 46, 0.62);
+  --card: #2c2c2e;
+  --text: #f5f5f7;
+  --muted: #9a9aa0;
+  --border: rgba(255, 255, 255, 0.1);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --accent: #0a84ff;
+  --hover: rgba(255, 255, 255, 0.06);
+  --sel: rgba(10, 132, 255, 0.26);
+  --sel-text: #4ca5ff;
+  --ok: #30d158;
+  --warn: #ff9f0a;
+  --bad: #ff453a;
+  --neutral: #98989d;
+
+  --code-bg: #1e1e1e;
+  --code-text: #d4d4d4;
+  --code-ln: #5a5a5a;
+  --tok-key: #9cdcfe;
+  --tok-str: #ce9178;
+  --tok-num: #b5cea8;
+  --tok-bool: #569cd6;
+  --tok-null: #569cd6;
 }
 
 * {
