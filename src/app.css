@@ -883,7 +883,8 @@ body {
   background: var(--panel);
   backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--hairline);
-  z-index: 5;
+  position: relative; /* stacking context so the ⚙ popover sits above .app */
+  z-index: 20;
 }
 
 /* The drop overlay covered from 44px down (old Electron titlebar). Cover it all. */
@@ -917,3 +918,200 @@ body {
     width: 200px;
   }
 }
+
+/* ===========================================================================
+   Advanced options menu, thumbnails, provenance tree, raw format selector
+   =========================================================================== */
+
+/* Gear button open-state (overrides the earlier filled .icon-btn.on) */
+.icon-btn.on {
+  color: var(--accent);
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+/* ---------- Advanced options popover ---------- */
+.adv-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.adv-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 288px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: 0 12px 34px -10px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.08);
+  padding: 13px;
+  z-index: 50;
+  animation: adv-pop 0.15s ease;
+}
+@keyframes adv-pop {
+  from { opacity: 0; transform: translateY(-5px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.adv-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin: 2px 4px 11px;
+}
+.adv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px;
+}
+.adv-text { flex: 1; }
+.adv-name { font-size: 13px; font-weight: 600; }
+.adv-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+/* ---------- iOS-style switch ---------- */
+.switch {
+  flex-shrink: 0;
+  width: 42px;
+  height: 25px;
+  border-radius: 99px;
+  border: none;
+  padding: 0;
+  background: var(--neutral);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.22s ease;
+}
+.switch.on { background: var(--ok); }
+.switch .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.switch.on .knob { transform: translateX(17px); }
+
+/* ---------- Raw format segmented control ---------- */
+.raw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.seg {
+  display: inline-flex;
+  background: var(--hover);
+  border-radius: 9px;
+  padding: 2px;
+  gap: 2px;
+}
+.rawfmt {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.rawfmt:hover { color: var(--text); }
+.rawfmt.active {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.rawfmt.unavail { opacity: 0.4; }
+
+/* ---------- Thumbnails ---------- */
+.cc-thumb {
+  margin: 0 0 12px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: var(--hover);
+  max-width: 240px;
+}
+.cc-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.chain-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--hover);
+  border: 1px solid var(--hairline);
+}
+.chain-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.small {
+  font-size: 11px;
+  word-break: break-all;
+}
+
+/* ---------- Provenance tree ---------- */
+#tree { padding: 6px 2px; }
+.tree,
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tree ul {
+  margin-left: 19px;
+  margin-top: 4px;
+  padding-left: 16px;
+  border-left: 1.5px solid var(--hairline);
+}
+.tree li { position: relative; padding: 4px 0; }
+.tnode {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.tnode.root { border-color: var(--accent); }
+.tnode.ing {
+  background: transparent;
+  border-style: dashed;
+}
+.tbadge {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+}
+.tbadge.i { background: var(--neutral); }
+.tname { font-size: 13px; line-height: 1.45; }
+.tree-empty { padding: 22px; text-align: center; }

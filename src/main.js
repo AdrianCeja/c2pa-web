@@ -54,6 +54,7 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
   let nextId = 1;
   let currentRaw = '';
   let currentName = 'manifest';
+  let currentView = 'summary'; // Raw JSON format: summary | detailed | crjson
 
   // ---------- c2pa-web engine (WASM, initialized once) ----------
   let c2paPromise = null;
@@ -64,25 +65,90 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
   }
 
   /**
-   * Reads a File in the browser.
-   * Returns { store, raw, reason }:
+   * Reads a File in the browser and gathers everything the UI needs.
+   * Returns { store, reason, views, thumbs }:
    *  - store set        → a manifest was read
-   *  - reason 'empty'   → fromBlob returned null: no manifest embedded in the bytes
-   *  - throws           → an actual read/parse error (message surfaced to the UI)
+   *  - reason 'empty'   → no manifest in this asset
+   *  - throws           → a real read/parse error (surfaced to the UI)
+   *  - views  → { summary, detailed, crjson } pretty JSON strings (some may be null)
+   *  - thumbs → extracted thumbnail object URLs (must be revoked later)
    */
   async function readManifest(file, trust) {
     const c2pa = await getC2pa();
-    // fromBlob resolves to null when the asset carries no *embedded* C2PA manifest.
+    // fromBlob resolves to null when the asset carries no C2PA manifest.
     // When trust is on, pass the trust-list settings so the signer is checked.
     const reader = await c2pa.reader.fromBlob(mimeOf(file), file, trust ? TRUST_SETTINGS : undefined);
-    if (!reader) return { store: null, raw: '', reason: 'empty' };
+    if (!reader) return { store: null, reason: 'empty' };
     try {
       const store = await reader.manifestStore();
-      const raw = store ? JSON.stringify(store, null, 2) : '';
-      return { store, raw, reason: store ? 'ok' : 'empty' };
+      if (!store) return { store: null, reason: 'empty' };
+      const views = {
+        summary: JSON.stringify(store, null, 2),
+        detailed: await altView(() => reader.json()),
+        crjson: await altView(() => reader.crJson()),
+      };
+      const thumbs = await extractResources(reader, store);
+      return { store, reason: 'ok', views, thumbs };
     } finally {
       // Release the WASM-side reader no matter what.
       try { await reader.free(); } catch { /* ignore */ }
+    }
+  }
+
+  // Alternate manifest serializations (c2patool's --detailed / --crjson).
+  async function altView(fn) {
+    try {
+      const v = await fn();
+      if (v == null) return null;
+      return typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+    } catch {
+      return null;
+    }
+  }
+
+  // Pull thumbnail bytes out of the reader while it is still alive (before free()).
+  async function extractResources(reader, store) {
+    const out = { active: null, ingredients: [] };
+    const m = store.active_manifest && store.manifests ? store.manifests[store.active_manifest] : null;
+    if (!m) return out;
+    out.active = await resourceUrl(reader, m.thumbnail);
+    for (const ing of Array.isArray(m.ingredients) ? m.ingredients : []) {
+      out.ingredients.push({
+        title: ing.title || ing.format || 'ingredient',
+        url: await resourceUrl(reader, ing.thumbnail),
+      });
+    }
+    return out;
+  }
+
+  async function resourceUrl(reader, ref) {
+    if (!ref || !ref.identifier) return null;
+    try {
+      const bytes = await reader.resourceToBytes(ref.identifier);
+      if (!bytes || !bytes.length) return null;
+      return URL.createObjectURL(new Blob([bytes], { type: ref.format || 'image/jpeg' }));
+    } catch {
+      return null;
+    }
+  }
+
+  function revokeThumbs(item) {
+    if (!item.thumbs) return;
+    if (item.thumbs.active) URL.revokeObjectURL(item.thumbs.active);
+    for (const ing of item.thumbs.ingredients || []) if (ing.url) URL.revokeObjectURL(ing.url);
+    item.thumbs = null;
+  }
+
+  // Best-effort scan of the file bytes for a remote manifest URL (for the Info card).
+  async function probeRemoteUrl(file) {
+    try {
+      const cap = Math.min(file.size, 16 * 1024 * 1024);
+      const buf = new Uint8Array(await file.slice(0, cap).arrayBuffer());
+      const text = new TextDecoder('latin1').decode(buf);
+      const m = text.match(/https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]*manifests?[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]*/i);
+      return m ? m[0].replace(/[)\].,'"]+$/, '') : null;
+    } catch {
+      return null;
     }
   }
 
@@ -107,7 +173,10 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     fileInput.value = ''; // allow re-picking the same file
   });
   $('#btn-clear').addEventListener('click', () => {
-    for (const it of items) if (it.url) URL.revokeObjectURL(it.url);
+    for (const it of items) {
+      if (it.url) URL.revokeObjectURL(it.url);
+      revokeThumbs(it);
+    }
     items = [];
     selectedId = null;
     renderList();
@@ -147,27 +216,45 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
   });
   paintThemeButton(resolvedTheme());
 
-  // ---------- Trust-list validation toggle ----------
-  const trustBtn = $('#btn-trust');
-  function paintTrustButton() {
-    trustBtn.classList.toggle('on', trustMode);
-    trustBtn.setAttribute('aria-pressed', trustMode ? 'true' : 'false');
-    trustBtn.title = trustMode
-      ? 'Trust check ON — verifying the signer against the Content Credentials trust list. Click to turn off.'
-      : 'Trust check OFF — click to verify the signer against the trust list (Trusted vs Untrusted).';
+  // ---------- Advanced options menu (gear) ----------
+  const advBtn = $('#btn-adv');
+  const advMenu = $('#adv-menu');
+  const swTrust = $('#sw-trust');
+
+  function openAdv(open) {
+    advMenu.classList.toggle('hidden', !open);
+    advBtn.classList.toggle('on', open);
+    advBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
-  trustBtn.addEventListener('click', async () => {
+  advBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openAdv(advMenu.classList.contains('hidden'));
+  });
+  document.addEventListener('click', (e) => {
+    if (!advMenu.classList.contains('hidden') && !advMenu.contains(e.target) && e.target !== advBtn) {
+      openAdv(false);
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') openAdv(false);
+  });
+
+  function paintTrustSwitch() {
+    swTrust.classList.toggle('on', trustMode);
+    swTrust.setAttribute('aria-checked', trustMode ? 'true' : 'false');
+  }
+  swTrust.addEventListener('click', async () => {
     trustMode = !trustMode;
     try {
       localStorage.setItem('trust', trustMode ? '1' : '0');
     } catch {
       /* ignore */
     }
-    paintTrustButton();
+    paintTrustSwitch();
     // Re-analyze already-loaded assets under the new mode.
     for (const item of items) await analyzeItem(item);
   });
-  paintTrustButton();
+  paintTrustSwitch();
 
   // ---------- About / Credits ----------
   const aboutEl = $('#about');
@@ -189,11 +276,38 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
       .querySelectorAll('.tab')
       .forEach((t) => t.classList.toggle('active', t.dataset.tab === which));
     $('#panel-summary').classList.toggle('hidden', which !== 'summary');
+    $('#panel-tree').classList.toggle('hidden', which !== 'tree');
     $('#panel-raw').classList.toggle('hidden', which !== 'raw');
   }
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => activateTab(tab.dataset.tab));
   });
+
+  // ---------- Raw format selector (summary / detailed / crJSON) ----------
+  function setView(view) {
+    currentView = view;
+    document
+      .querySelectorAll('.rawfmt')
+      .forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+    const item = items.find((it) => it.id === selectedId);
+    if (item) renderRaw(item);
+  }
+  document.querySelectorAll('.rawfmt').forEach((b) => {
+    b.addEventListener('click', () => setView(b.dataset.view));
+  });
+
+  function renderRaw(item) {
+    const views = item.views || { summary: '' };
+    const raw = views[currentView] != null ? views[currentView] : views.summary;
+    currentRaw = raw || '';
+    document.querySelectorAll('.rawfmt').forEach((b) => {
+      const v = views[b.dataset.view];
+      b.classList.toggle('unavail', b.dataset.view !== 'summary' && (v == null || v === ''));
+    });
+    $('#json').innerHTML = currentRaw ? highlightJSON(currentRaw) : emptyJsonNote(item);
+    jsonBaseHTML = $('#json').innerHTML;
+    if (!findBar.classList.contains('hidden')) runFind();
+  }
 
   // ---------- Raw JSON actions ----------
   $('#btn-copy').addEventListener('click', async () => {
@@ -380,9 +494,10 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     }
   }
 
-  function applyStore(item, store, raw) {
-    item.result = { raw };
-    item.vm = Parser.parse(store);
+  function applyStore(item, res) {
+    item.views = res.views;
+    item.thumbs = res.thumbs;
+    item.vm = Parser.parse(res.store);
     if (item.vm) item.vm.trustUnavailable = !!item.trustUnavailable;
     item.status = item.vm ? item.vm.validationBadge : 'none';
     item.reason = 'ok';
@@ -412,19 +527,23 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
           throw e;
         }
       }
-      const { store, raw } = res;
-      if (store) {
-        applyStore(item, store, raw);
+      revokeThumbs(item);
+      if (res.store) {
+        applyStore(item, res);
+        item.probe = { remoteUrl: await probeRemoteUrl(item.file) };
       } else {
-        item.result = { raw };
+        item.views = { summary: '' };
         item.vm = null;
+        item.probe = null;
         item.status = 'none';
         item.reason = 'empty';
         item.error = null;
       }
     } catch (e) {
-      item.result = { raw: '' };
+      revokeThumbs(item);
+      item.views = { summary: '' };
       item.vm = null;
+      item.probe = null;
       item.status = 'none';
       item.reason = 'error';
       item.error = (e && e.message) || String(e);
@@ -521,13 +640,13 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
       setBadge(badge, 'none', 'No Content Credentials');
     }
 
-    $('#cards').innerHTML = item.vm ? buildCards(item.vm) : buildNoManifest(item);
+    $('#cards').innerHTML = item.vm ? buildCards(item.vm, item) : buildNoManifest(item);
+    $('#tree').innerHTML = item.vm
+      ? buildTree(item.vm)
+      : '<div class="tree-empty muted">No manifest to chart.</div>';
 
-    currentRaw = item.result && item.result.raw ? item.result.raw : '';
     currentName = item.name;
-    $('#json').innerHTML = currentRaw ? highlightJSON(currentRaw) : emptyJsonNote(item);
-    jsonBaseHTML = $('#json').innerHTML;
-    if (!findBar.classList.contains('hidden')) runFind();
+    renderRaw(item);
   }
 
   function fmtSize(bytes) {
@@ -569,7 +688,7 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     return isNaN(d) ? esc(iso) : d.toLocaleString();
   }
 
-  function buildCards(P) {
+  function buildCards(P, item) {
     const A = P.active;
     const cards = [];
 
@@ -577,7 +696,7 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     let valInner = row('State', `<span class="pill ${P.validationBadge}">${esc(P.validationState)}</span>`);
     let trustVal;
     if (!trustMode) {
-      trustVal = '<span class="muted">off (enable to see Trusted/Untrusted)</span>';
+      trustVal = '<span class="muted">off (enable in ⚙ to see Trusted/Untrusted)</span>';
     } else if (P.trustUnavailable) {
       trustVal = '<span class="muted">unavailable — could not load the trust list</span>';
     } else {
@@ -601,12 +720,29 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     }
     cards.push(card('Validation', valInner));
 
+    // Info (c2patool's --info: source, stats)
+    const remote = item && item.probe && item.probe.remoteUrl;
+    let infoInner = row(
+      'Manifest source',
+      remote
+        ? `<span class="pill">remote</span> <span class="v mono small">${esc(remote)}</span>`
+        : 'embedded in the file',
+    );
+    infoInner += row('Active manifest', P.activeId ? `<span class="mono small">${esc(P.activeId)}</span>` : null);
+    infoInner += row('Ingredients', A ? String(A.ingredients.length) : null);
+    if (item) infoInner += row('File', `${esc(item.name)} · ${fmtSize(item.file.size)}`);
+    cards.push(card('Info', infoInner));
+
     if (A) {
       // Content credentials
       const gens = A.generators
         .map((g) => `<span class="pill accent">${esc(g.name)}${g.version ? ' ' + esc(g.version) : ''}</span>`)
         .join(' ');
-      let ccInner = row('Generator', gens || null);
+      let ccInner = '';
+      if (item && item.thumbs && item.thumbs.active) {
+        ccInner += `<div class="cc-thumb"><img src="${item.thumbs.active}" alt="Manifest thumbnail" loading="lazy" /></div>`;
+      }
+      ccInner += row('Generator', gens || null);
       ccInner += row('Produced by', A.softwareAgent ? esc(A.softwareAgent) : null);
       ccInner += row(
         'Content type',
@@ -652,7 +788,11 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
             const cv = ref && ref.claimVersion != null ? `claim v${ref.claimVersion}` : '';
             const rel = ing.relationship ? `<span class="pill">${esc(ing.relationship)}</span>` : '';
             const meta = [gen, signer, cv].filter(Boolean).map(esc).join(' · ');
-            return `<div class="chain-item"><span class="idx">${i + 1}</span><div><div>${esc(
+            const tu = item && item.thumbs && item.thumbs.ingredients[i] && item.thumbs.ingredients[i].url;
+            const lead = tu
+              ? `<span class="chain-thumb"><img src="${tu}" alt="" loading="lazy" /></span>`
+              : `<span class="idx">${i + 1}</span>`;
+            return `<div class="chain-item">${lead}<div><div>${esc(
               ing.title,
             )} ${rel}</div>${meta ? `<div class="li-sub">${meta}</div>` : ''}</div></div>`;
           })
@@ -662,6 +802,41 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     }
 
     return cards.join('');
+  }
+
+  // ---------- Provenance tree (like c2patool --tree) ----------
+  function buildTree(P) {
+    if (!P.active) return '<div class="tree-empty muted">No active manifest to chart.</div>';
+    const seen = new Set();
+    return `<ul class="tree">${manifestBranch(P, P.active, seen, true)}</ul>`;
+  }
+
+  function manifestBranch(P, m, seen, isRoot) {
+    seen.add(m.id);
+    const g = m.generators && m.generators[0];
+    const title = g ? esc(g.name) + (g.version ? ' ' + esc(g.version) : '') : 'Unknown generator';
+    const isActive = P.active && m.id === P.active.id;
+    const state = isActive ? `<span class="pill ${P.validationBadge}">${esc(P.validationState)}</span>` : '';
+    const ai = m.aiGenerated ? '<span class="pill ai">AI</span>' : '';
+    const cv = m.claimVersion != null ? `<span class="pill">v${esc(m.claimVersion)}</span>` : '';
+    const signer = m.signature && m.signature.issuer
+      ? `<div class="li-sub">signed by ${esc(m.signature.issuer)}</div>`
+      : '';
+    const head = `<div class="tnode manifest${isRoot ? ' root' : ''}"><span class="tbadge m">M</span>` +
+      `<div class="tname"><div>${title} ${state} ${ai} ${cv}</div>${signer}</div></div>`;
+
+    const ings = Array.isArray(m.ingredients) ? m.ingredients : [];
+    const kids = ings.length ? `<ul>${ings.map((ing) => ingredientLi(P, ing, seen)).join('')}</ul>` : '';
+    return `<li>${head}${kids}</li>`;
+  }
+
+  function ingredientLi(P, ing, seen) {
+    const rel = ing.relationship ? `<span class="pill">${esc(ing.relationship)}</span>` : '';
+    const node = `<div class="tnode ing"><span class="tbadge i">i</span>` +
+      `<div class="tname"><div>${esc(ing.title)} ${rel}</div></div></div>`;
+    const ref = ing.activeManifest && P.byId[ing.activeManifest];
+    const sub = ref && !seen.has(ref.id) ? `<ul>${manifestBranch(P, ref, seen, false)}</ul>` : '';
+    return `<li>${node}${sub}</li>`;
   }
 
   function buildNoManifest(item) {

@@ -22,12 +22,26 @@
       <div class="webbar-title">C2PA Web Inspector</div>
       <div class="webbar-actions">
         <button id="btn-open" class="btn">Open files</button>
-        <button id="btn-trust" class="btn icon-btn" aria-label="Toggle trust-list validation" aria-pressed="false">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3l7 3v5c0 4-3 6.6-7 8-4-1.4-7-4-7-8V6l7-3z" />
-            <path d="M9 12l2 2 4-4" />
-          </svg>
-        </button>
+        <div class="adv-wrap">
+          <button id="btn-adv" class="btn icon-btn" title="Advanced options" aria-label="Advanced options" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+          <div id="adv-menu" class="adv-menu hidden" role="menu">
+            <div class="adv-title">Advanced options</div>
+            <div class="adv-row">
+              <div class="adv-text">
+                <div class="adv-name">Verify trust list</div>
+                <div class="adv-hint">Check the signer against contentcredentials.org — shows Trusted vs Valid.</div>
+              </div>
+              <button id="sw-trust" class="switch" role="switch" aria-checked="true" aria-label="Verify trust list">
+                <span class="knob"></span>
+              </button>
+            </div>
+          </div>
+        </div>
         <button id="btn-theme" class="btn icon-btn" title="Toggle light/dark" aria-label="Toggle light or dark mode"></button>
         <button id="btn-about" class="btn icon-btn" title="About" aria-label="About">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -81,11 +95,16 @@
 
           <nav class="tabs">
             <button class="tab active" data-tab="summary">Summary</button>
+            <button class="tab" data-tab="tree">Tree</button>
             <button class="tab" data-tab="raw">Raw JSON</button>
           </nav>
 
           <div class="tab-panel" id="panel-summary">
             <div id="cards" class="cards"></div>
+          </div>
+
+          <div class="tab-panel hidden" id="panel-tree">
+            <div id="tree"></div>
           </div>
 
           <div class="tab-panel hidden" id="panel-raw">
@@ -101,6 +120,11 @@
               <button id="find-close" class="find-nav" title="Close (Esc)" aria-label="Close find">&times;</button>
             </div>
             <div class="raw-toolbar">
+              <div class="seg" role="group" aria-label="JSON format">
+                <button class="rawfmt active" data-view="summary">Summary</button>
+                <button class="rawfmt" data-view="detailed">Detailed</button>
+                <button class="rawfmt" data-view="crjson">crJSON</button>
+              </div>
               <button id="btn-copy" class="btn small">Copy</button>
               <button id="btn-save" class="btn small">Save JSON…</button>
               <span id="raw-status" class="muted"></span>
