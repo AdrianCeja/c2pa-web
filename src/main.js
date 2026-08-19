@@ -11,14 +11,24 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
   const VIDEO_EXT = /\.(mp4|mov|m4v|avi|webm|mkv)$/i;
   const C2PA_WEB_VERSION = '0.12.3';
 
-  // Trust-list validation (opt-in). With these, a signer on the Content
-  // Credentials trust list yields validation_state "Trusted"; otherwise "Valid".
+  // Trust-list validation (opt-in). With these, a signer on one of the anchor
+  // lists yields validation_state "Trusted"; otherwise "Valid".
   // Same lists c2patool uses via --trust_anchors / --allowed_list / --trust_config.
   // Direct verify.contentauthenticity.org URLs (CORS-open) to skip the CC redirect.
+  // Two anchor sources; c2pa-web fetches an array of URLs and concatenates them:
+  //  - Content Credentials: the production signers seen on the public web.
+  //  - C2PA conformance program list: roots the CC list leaves out (Adobe's
+  //    internal issuing CA, Google, DigiCert, SSL.com...). Without it, assets
+  //    signed in dev/stage come back "signing certificate untrusted" even
+  //    though the signature itself validates fine.
+  const TRUST_ANCHORS = [
+    'https://verify.contentauthenticity.org/trust/anchors.pem',
+    'https://raw.githubusercontent.com/c2pa-org/conformance-public/refs/heads/main/trust-list/C2PA-TRUST-LIST.pem',
+  ];
   const TRUST_SETTINGS = {
     verify: { verifyTrust: true },
     trust: {
-      trustAnchors: 'https://verify.contentauthenticity.org/trust/anchors.pem',
+      trustAnchors: TRUST_ANCHORS,
       allowedList: 'https://verify.contentauthenticity.org/trust/allowed.sha256.txt',
       trustConfig: 'https://verify.contentauthenticity.org/trust/store.cfg',
     },
@@ -686,7 +696,7 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     } else if (P.trustUnavailable) {
       trustVal = '<span class="muted">unavailable — could not load the trust list</span>';
     } else {
-      trustVal = '<span class="pill accent">verified vs contentcredentials.org</span>';
+      trustVal = '<span class="pill accent">verified vs contentcredentials.org + C2PA conformance list</span>';
     }
     valInner += row('Trust check', trustVal);
     valInner += row('Checks passed', P.successes != null ? String(P.successes) : null);
