@@ -549,6 +549,13 @@ body {
   color: var(--warn);
 }
 
+/* Green tick in front of a validation check that passed. */
+.ck {
+  color: var(--ok);
+  font-weight: 700;
+  margin-right: 6px;
+}
+
 .chain {
   display: flex;
   flex-direction: column;

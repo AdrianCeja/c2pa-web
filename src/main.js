@@ -673,6 +673,24 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     return `<div class="row"><span class="k">${esc(k)}</span><span class="v${mono ? ' mono' : ''}">${v}</span></div>`;
   }
 
+  // Friendlier wording for the validation codes we spell out in the card.
+  // `strip` drops the part of the explanation the label already says, so the
+  // row reads "Signing certificate: trusted, found in System trust anchors"
+  // instead of repeating itself. Unknown codes fall back to prettify().
+  const CHECK_ROWS = {
+    'signingCredential.trusted': { label: 'Signing certificate', strip: /^signing certificate\s*/i },
+    'timeStamp.trusted': { label: 'Timestamp', strip: /^timestamp\s*/i },
+    'signingCredential.ocsp.notRevoked': { label: 'Revocation check', strip: /^signing cert\s*/i },
+  };
+
+  // A passed check: green tick plus the explanation c2pa-rs gives.
+  function checkRow(f) {
+    const def = CHECK_ROWS[f.code];
+    const label = def ? def.label : Parser.prettify(f.code);
+    const text = def && def.strip ? (f.explanation || '').replace(def.strip, '') : f.explanation;
+    return row(label, `<span class="ck">\u2713</span>${esc(text || 'ok')}`);
+  }
+
   function card(title, inner, span) {
     if (!inner) return '';
     return `<div class="card${span ? ' span-2' : ''}"><h2>${esc(title)}</h2>${inner}</div>`;
@@ -712,10 +730,10 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
       valInner += row(Parser.prettify(f.code), esc(f.explanation));
     }
     for (const f of P.trusted || []) {
-      valInner += row(Parser.prettify(f.code), esc(f.explanation));
+      valInner += checkRow(f);
     }
     for (const f of P.informational) {
-      valInner += row(Parser.prettify(f.code), esc(f.explanation));
+      valInner += CHECK_ROWS[f.code] ? checkRow(f) : row(Parser.prettify(f.code), esc(f.explanation));
     }
     cards.push(card('Validation', valInner));
 
