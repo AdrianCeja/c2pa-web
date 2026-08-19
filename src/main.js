@@ -673,22 +673,19 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     return `<div class="row"><span class="k">${esc(k)}</span><span class="v${mono ? ' mono' : ''}">${v}</span></div>`;
   }
 
-  // Friendlier wording for the validation codes we spell out in the card.
-  // `strip` drops the part of the explanation the label already says, so the
-  // row reads "Signing certificate: trusted, found in System trust anchors"
-  // instead of repeating itself. Unknown codes fall back to prettify().
+  // Friendlier labels for the validation codes we spell out in the card. The
+  // explanation from c2pa-rs is kept verbatim as the value. Unknown codes fall
+  // back to prettify().
   const CHECK_ROWS = {
-    'signingCredential.trusted': { label: 'Signing certificate', strip: /^signing certificate\s*/i },
-    'timeStamp.trusted': { label: 'Timestamp', strip: /^timestamp\s*/i },
-    'signingCredential.ocsp.notRevoked': { label: 'Revocation check', strip: /^signing cert\s*/i },
+    'signingCredential.trusted': 'Signing certificate',
+    'timeStamp.trusted': 'Timestamp',
+    'signingCredential.ocsp.notRevoked': 'Revocation check',
   };
 
   // A passed check: green tick plus the explanation c2pa-rs gives.
   function checkRow(f) {
-    const def = CHECK_ROWS[f.code];
-    const label = def ? def.label : Parser.prettify(f.code);
-    const text = def && def.strip ? (f.explanation || '').replace(def.strip, '') : f.explanation;
-    return row(label, `<span class="ck">\u2713</span>${esc(text || 'ok')}`);
+    const label = CHECK_ROWS[f.code] || Parser.prettify(f.code);
+    return row(label, `<span class="ck">\u2713</span>${esc(f.explanation || 'ok')}`);
   }
 
   function card(title, inner, span) {
