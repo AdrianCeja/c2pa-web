@@ -711,6 +711,9 @@ import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
     for (const f of P.failures) {
       valInner += row(Parser.prettify(f.code), esc(f.explanation));
     }
+    for (const f of P.trusted || []) {
+      valInner += row(Parser.prettify(f.code), esc(f.explanation));
+    }
     for (const f of P.informational) {
       valInner += row(Parser.prettify(f.code), esc(f.explanation));
     }

@@ -172,7 +172,13 @@
     const mapEntry = (f) => ({ code: f.code || '', explanation: f.explanation || '' });
     const failures = (vr.failure || store.validation_status || []).map(mapEntry);
     const informational = (vr.informational || []).map(mapEntry);
-    const successes = (vr.success || []).length;
+    const success = (vr.success || []).map(mapEntry);
+    const successes = success.length;
+    // The trust checks are the only successes worth spelling out: their
+    // explanation names which anchor list the signer or the timestamp matched
+    // (e.g. "signing certificate trusted, found in System trust anchors").
+    // The rest of the successes stay behind the "Checks passed" count.
+    const trusted = success.filter((e) => e.code.endsWith('.trusted'));
 
     let badge = 'warn';
     // c2pa-rs reports Valid | Invalid | Trusted (Trusted = valid + a trusted signer).
@@ -196,6 +202,7 @@
       validationBadge: badge,
       failures,
       informational,
+      trusted,
       successes,
       claimVersions,
       activeId,
